@@ -5,16 +5,13 @@ from ta import macd
 import numpy as np
 from datetime import datetime, timedelta
 from pytz import timezone
+import config
 
-# Replace these with your API connection info from the dashboard
-base_url = 'Your API URL'
-api_key_id = 'Your API Key'
-api_secret = 'Your API Secret'
 
 api = tradeapi.REST(
-    base_url=base_url,
-    key_id=api_key_id,
-    secret_key=api_secret
+    base_url=config.PAPER_API_ENDPOINT,
+    key_id=config.PAPER_API_KEY_ID,
+    secret_key=config.PAPER_API_SECRET_KEY
 )
 
 session = requests.session()
