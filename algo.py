@@ -57,7 +57,7 @@ def find_stop(current_value, minute_history, now):
 
 
 def run(tickers, market_open_dt, market_close_dt):
-    """Establish API connections and run trading algorithm."""
+    """Run trading algorithm while market is open."""
     # Establish streaming connection
     conn = config.STREAMING_CXN
 
@@ -379,8 +379,21 @@ if __name__ == "__main__":
     # Wait until just before we might want to trade
     current_dt = datetime.today().astimezone(nyc)
     since_market_open = current_dt - market_open
-    while since_market_open.seconds // 60 <= 14:
+
+    # Sleep until market is open
+    market_active = False
+    print('Waiting for market to open...')
+    while not market_active:
         time.sleep(1)
+        current_dt = datetime.today().astimezone(nyc)
+        if market_open <= current_dt <= market_close:
+            market_active = True
+
+    print('Market has opened.')
+    print(f'Waiting for {config.WAIT} minutes to make trades...')
+    while since_market_open.seconds // 60 < config.WAIT:
+        time.sleep(1)
+        current_dt = datetime.today().astimezone(nyc)
         since_market_open = current_dt - market_open
 
     run(get_tickers(), market_open, market_close)
