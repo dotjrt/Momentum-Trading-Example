@@ -4,15 +4,17 @@ import os
 
 
 REST_CXN = tradeapi.REST(
-    base_url=os.environ.get(PAPER_API_ENDPOINT),
-    key_id=os.environ.get(PAPER_API_KEY_ID),
-    secret_key=os.environ.get(PAPER_API_SECRET_KEY)
+    base_url=os.environ.get('APCA_API_BASE_URL',
+                            'https://paper-api.alpaca.markets'),
+    key_id=os.environ.get('APCA_API_KEY_ID'),
+    secret_key=os.environ.get('APCA_API_SECRET_KEY')
 )
 
 STREAMING_CXN = tradeapi.StreamConn(
-    base_url=os.environ.get(PAPER_API_ENDPOINT),
-    key_id=os.environ.get(PAPER_API_KEY_ID),
-    secret_key=os.environ.get(PAPER_API_SECRET_KEY)
+    base_url=os.environ.get('APCA_API_BASE_URL',
+                            'https://paper-api.alpaca.markets'),
+    key_id=os.environ.get('APCA_API_KEY_ID'),
+    secret_key=os.environ.get('APCA_API_SECRET_KEY')
 )
 
 """Trading strategy parameters."""
