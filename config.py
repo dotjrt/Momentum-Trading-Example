@@ -14,7 +14,8 @@ STREAMING_CXN = tradeapi.StreamConn(
     base_url=os.environ.get('APCA_API_BASE_URL',
                             'https://paper-api.alpaca.markets'),
     key_id=os.environ.get('APCA_API_KEY_ID'),
-    secret_key=os.environ.get('APCA_API_SECRET_KEY')
+    secret_key=os.environ.get('APCA_API_SECRET_KEY'),
+    data_stream='polygon'
 )
 
 """Trading strategy parameters."""
