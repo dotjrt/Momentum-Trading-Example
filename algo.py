@@ -1,7 +1,7 @@
 import alpaca_trade_api as tradeapi
 import requests
 import time
-from ta import macd
+from ta.trend import macd
 import numpy as np
 from datetime import datetime, timedelta
 from pytz import timezone
@@ -58,7 +58,7 @@ def get_tickers():
 
 def find_stop(current_value, minute_history, now):
     series = minute_history['low'][-100:] \
-                .dropna().resample('5min').min()
+        .dropna().resample('5min').min()
     series = series[now.floor('1D'):]
     diff = np.diff(series.values)
     low_index = np.where((diff[:-1] <= 0) & (diff[1:] > 0))[0] + 1
@@ -69,7 +69,10 @@ def find_stop(current_value, minute_history, now):
 
 def run(tickers, market_open_dt, market_close_dt):
     # Establish streaming connection
-    conn = tradeapi.StreamConn(base_url=base_url, key_id=api_key_id, secret_key=api_secret)
+    conn = tradeapi.StreamConn(
+        base_url=config.PAPER_API_ENDPOINT,
+        key_id=config.PAPER_API_KEY_ID,
+        secret_key=config.PAPER_API_SECRET_KEY)
 
     # Update initial state with information from tickers
     volume_today = {}
