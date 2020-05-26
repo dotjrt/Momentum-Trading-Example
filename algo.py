@@ -3,7 +3,7 @@ import requests
 import time
 from ta.trend import macd
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pytz import timezone
 import config
 
@@ -13,15 +13,21 @@ session = requests.session()
 
 
 def get_1000m_history_data(symbols):
-    """Get minute-by-minute price data for each symbol in symbols."""
+    """Get price data for each stock from up to the last 1000 minutes."""
     print('Getting historical data...')
     minute_history = {}
     c = 0
+    today = date.today()
+    yesterday = date.today() - timedelta(days=1)
+
     for symbol in symbols:
-        minute_history[symbol] = api.polygon.historic_agg(
-            size="minute",
+        minute_history[symbol] = api.polygon.historic_agg_v2(
+            timespan="minute",
             symbol=symbol,
-            limit=1000
+            limit=1000,
+            multiplier=1,
+            _from=yesterday.strftime("%Y-%m-%d"),
+            to=today.strftime("%Y-%m-%d")
         ).df
         c += 1
         print('{}/{}'.format(c, len(symbols)))
