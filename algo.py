@@ -1,42 +1,27 @@
-import alpaca_trade_api as tradeapi
+"""A MACD-based day trading algorithm."""
 import requests
 import time
-from ta import macd
+from ta.trend import macd
 import numpy as np
 from datetime import datetime, timedelta
 from pytz import timezone
+import config
 
-# Replace these with your API connection info from the dashboard
-base_url = 'Your API URL'
-api_key_id = 'Your API Key'
-api_secret = 'Your API Secret'
 
-api = tradeapi.REST(
-    base_url=base_url,
-    key_id=api_key_id,
-    secret_key=api_secret
-)
-
+api = config.REST_CXN
 session = requests.session()
-
-# We only consider stocks with per-share prices inside this range
-min_share_price = 2.0
-max_share_price = 13.0
-# Minimum previous-day dollar volume for a stock we might consider
-min_last_dv = 500000
-# Stop limit to default to
-default_stop = .95
-# How much of our portfolio to allocate to any one position
-risk = 0.001
 
 
 def get_1000m_history_data(symbols):
+    """Get minute-by-minute price data for each symbol in symbols."""
     print('Getting historical data...')
     minute_history = {}
     c = 0
     for symbol in symbols:
         minute_history[symbol] = api.polygon.historic_agg(
-            size="minute", symbol=symbol, limit=1000
+            size="minute",
+            symbol=symbol,
+            limit=1000
         ).df
         c += 1
         print('{}/{}'.format(c, len(symbols)))
@@ -45,6 +30,7 @@ def get_1000m_history_data(symbols):
 
 
 def get_tickers():
+    """Get ticker data for all stocks that meet our criteria."""
     print('Getting current ticker data...')
     tickers = api.polygon.all_tickers()
     print('Success.')
@@ -52,27 +38,28 @@ def get_tickers():
     symbols = [asset.symbol for asset in assets if asset.tradable]
     return [ticker for ticker in tickers if (
         ticker.ticker in symbols and
-        ticker.lastTrade['p'] >= min_share_price and
-        ticker.lastTrade['p'] <= max_share_price and
-        ticker.prevDay['v'] * ticker.lastTrade['p'] > min_last_dv and
-        ticker.todaysChangePerc >= 3.5
+        ticker.lastTrade['p'] >= config.MIN_SHARE_PRICE and
+        ticker.lastTrade['p'] <= config.MAX_SHARE_PRICE and
+        ticker.prevDay['v'] * ticker.lastTrade['p'] > config.MIN_LAST_DV and
+        ticker.todaysChangePerc >= config.TODAYS_CHANGE_PCT
     )]
 
 
 def find_stop(current_value, minute_history, now):
-    series = minute_history['low'][-100:] \
-                .dropna().resample('5min').min()
+    """Calculate lowest value at which we will sell a stock."""
+    series = minute_history['low'][-100:].dropna().resample('5min').min()
     series = series[now.floor('1D'):]
     diff = np.diff(series.values)
     low_index = np.where((diff[:-1] <= 0) & (diff[1:] > 0))[0] + 1
     if len(low_index) > 0:
         return series[low_index[-1]] - 0.01
-    return current_value * default_stop
+    return current_value * config.DEFAULT_STOP
 
 
 def run(tickers, market_open_dt, market_close_dt):
+    """Run trading algorithm while market is open."""
     # Establish streaming connection
-    conn = tradeapi.StreamConn(base_url=base_url, key_id=api_key_id, secret_key=api_secret)
+    conn = config.STREAMING_CXN
 
     # Update initial state with information from tickers
     volume_today = {}
@@ -108,7 +95,7 @@ def run(tickers, market_open_dt, market_close_dt):
             # Recalculate cost basis and stop price
             latest_cost_basis[position.symbol] = float(position.cost_basis)
             stop_prices[position.symbol] = (
-                float(position.cost_basis) * default_stop
+                float(position.cost_basis) * config.DEFAULT_STOP
             )
 
     # Keep track of what we're buying/selling
@@ -250,7 +237,7 @@ def run(tickers, market_open_dt, market_close_dt):
                 target_prices[symbol] = data.close + (
                     (data.close - stop_price) * 3
                 )
-                shares_to_buy = portfolio_value * risk // (
+                shares_to_buy = portfolio_value * config.RISK // (
                     data.close - stop_price
                 )
                 if shares_to_buy == 0:
@@ -264,8 +251,11 @@ def run(tickers, market_open_dt, market_close_dt):
                 ))
                 try:
                     o = api.submit_order(
-                        symbol=symbol, qty=str(shares_to_buy), side='buy',
-                        type='limit', time_in_force='day',
+                        symbol=symbol,
+                        qty=str(shares_to_buy),
+                        side='buy',
+                        type='limit',
+                        time_in_force='day',
                         limit_price=str(data.close)
                     )
                     open_orders[symbol] = o
@@ -357,8 +347,8 @@ def run(tickers, market_open_dt, market_close_dt):
     run_ws(conn, channels)
 
 
-# Handle failed websocket connections by reconnecting
 def run_ws(conn, channels):
+    """Handle failed websocket connections by reconnecting."""
     try:
         conn.run(channels)
     except Exception as e:
@@ -389,8 +379,21 @@ if __name__ == "__main__":
     # Wait until just before we might want to trade
     current_dt = datetime.today().astimezone(nyc)
     since_market_open = current_dt - market_open
-    while since_market_open.seconds // 60 <= 14:
+
+    # Sleep until market is open
+    market_active = False
+    print('Waiting for market to open...')
+    while not market_active:
         time.sleep(1)
+        current_dt = datetime.today().astimezone(nyc)
+        if market_open <= current_dt <= market_close:
+            market_active = True
+
+    print('Market has opened.')
+    print(f'Waiting for {config.WAIT} minutes to make trades...')
+    while since_market_open.seconds // 60 < config.WAIT:
+        time.sleep(1)
+        current_dt = datetime.today().astimezone(nyc)
         since_market_open = current_dt - market_open
 
     run(get_tickers(), market_open, market_close)
